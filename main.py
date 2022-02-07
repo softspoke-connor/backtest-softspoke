@@ -1,4 +1,5 @@
-from requests import put, get, post
+from requests import put, post
+from oanda_get import oanda_get
 from renko import Renko
 from time import time, sleep
 from datetime import datetime
@@ -58,7 +59,7 @@ def close(signal):
         headers={
             "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
         },
-        data={
+        json={
             req_key: "ALL"
         }
         )
@@ -67,40 +68,51 @@ def close(signal):
 
 
 def order(bull):
-    summary = get("https://api-fxpractice.oanda.com/v3/accounts/101-004-5674482-009/summary",
-                  headers={
-                      "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
-                  }).json()
-    balance = float(summary['account']['balance'])
+    summary = oanda_get("https://api-fxpractice.oanda.com/v3/accounts/101-004-5674482-009/summary",
+                        headers={
+                            "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
+                        }).json()
+    while summary['account']['openPositionCount'] == 1:
+        print('Close Pending...')
+        summary = oanda_get("https://api-fxpractice.oanda.com/v3/accounts/101-004-5674482-009/summary",
+                            headers={
+                                "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
+                            }).json()
+        sleep(0.5)
+    balance = float(summary['account']['marginAvailable'])
+    print(summary)
+
     margin_rate = float(summary['account']['marginRate'])
     units = floor((balance / 2) / margin_rate)
+    print('Units: {}'.format(units))
     if not bull:
         units *= -1
 
-    post("https://api-fxpractice.oanda.com/v3/accounts/101-004-5674482-009/orders",
-         headers={
-             "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
-         },
-         data={
-             "order": {
-                 "type": "MARKET",
-                 "instrument": "EUR_USD",
-                 "units": units,
-                 "stopLossOnFill": {
-                     "distance": 0.003
-                 }
-             }
-         })
+    order_result = post("https://api-fxpractice.oanda.com/v3/accounts/101-004-5674482-009/orders",
+                        headers={
+                            "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
+                        },
+                        json={
+                            "order": {
+                                "type": "MARKET",
+                                "instrument": "EUR_USD",
+                                "units": units,
+                                "stopLossOnFill": {
+                                    "distance": 0.003
+                                }
+                            }
+                        }).json()
+    print(order_result)
 
 
 def do_something():
-    test = get("https://api-fxpractice.oanda.com/v3/accounts/101-004-5674482-009/candles/latest",
-               headers={
-                   "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
-               },
-               params={
-                   "count": 2,
-                   "candleSpecifications": "EUR_USD:M15:BAM"}).json()
+    test = oanda_get("https://api-fxpractice.oanda.com/v3/accounts/101-004-5674482-009/candles/latest",
+                     headers={
+                         "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
+                     },
+                     params={
+                         "count": 2,
+                         "candleSpecifications": "EUR_USD:M15:BAM"}).json()
     data_parse(test)
     renko.feed(float(candlestick['mid']['c']))
     if renko.is_bull():
@@ -109,14 +121,14 @@ def do_something():
         sell()
 
 
-hist = get("https://api-fxpractice.oanda.com/v3/accounts/101-004-5674482-009/instruments/EUR_USD/candles",
-           headers={
-               "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
-           },
-           params={
-               "price": "BAM",
-               "count": 5000,
-               "granularity": "M15"}).json()
+hist = oanda_get("https://api-fxpractice.oanda.com/v3/accounts/101-004-5674482-009/instruments/EUR_USD/candles",
+                 headers={
+                     "Authorization": "Bearer 5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5"
+                 },
+                 params={
+                     "price": "BAM",
+                     "count": 5000,
+                     "granularity": "M15"}).json()
 
 for candle in hist['candles']:
     renko.feed(float(candle['mid']['c']))
