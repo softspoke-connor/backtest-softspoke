@@ -1,0 +1,3 @@
+git+https://github.com/ntsoftware/v20-python.git#subdirectory=src
+requests~=2.27.1
+redis~=4.1.4
