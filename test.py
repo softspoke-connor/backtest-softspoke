@@ -1,7 +1,9 @@
 from v20 import Context
-from v20.instrument import Candlestick
+from v20.instrument import Candlestick, CandlestickData
+from CandlestickDataAdvanced import CandlestickAdvanced
 from redis import Redis
 from renko import Renko
+from json import loads
 
 if __name__ == '__main__':
     redis = Redis(host='192.168.10.166', port=6379, db=0)
@@ -16,8 +18,14 @@ if __name__ == '__main__':
 
     sub = redis.pubsub()
     sub.psubscribe('*')
+
     for message in sub.listen():
         if message is not None and isinstance(message, dict):
             if message.get('data') != 1:
-                data = message.get('data').decode('utf-8')
+                data = loads(message.get('data').decode('utf-8'))
+                candle = Candlestick(
+                    mid=CandlestickData(),
+                    time=data['time'],
+
+                )
                 print(message.get('data'))
