@@ -6,7 +6,7 @@ from renko import Renko
 from json import loads
 
 if __name__ == '__main__':
-    redis = Redis(host='192.168.10.166', port=6379, db=0)
+    redis = Redis(host='localhost', port=6379, db=0)
     renko = Renko()
 
     oanda_context = Context("api-fxpractice.oanda.com",
@@ -17,15 +17,18 @@ if __name__ == '__main__':
         renko.feed(candle.mid.c)
 
     sub = redis.pubsub()
-    sub.psubscribe('*')
+    sub.psubscribe('ticks.EUR_USD')
 
+    candlestick_data_advanced = CandlestickAdvanced("M15")
     for message in sub.listen():
         if message is not None and isinstance(message, dict):
             if message.get('data') != 1:
                 data = loads(message.get('data').decode('utf-8'))
                 candle = Candlestick(
-                    mid=CandlestickData(),
-                    time=data['time'],
-
+                    mid=CandlestickData(c=data['mid']),
+                    bid=CandlestickData(c=data['bid']),
+                    ask=CandlestickData(c=data['ask']),
+                    time=data['time']
                 )
+                candlestick_data_advanced.feed(candle)
                 print(message.get('data'))
