@@ -167,10 +167,11 @@ from redis import Redis
 from RenkoBricks import BlankBrick, BullBrick, BearBrick
 from json import loads
 from CandlestickDataAdvanced import CandlestickAdvanced
+from datetime import datetime
 
 
 if __name__ == '__main__':
-    redis = Redis(host='localhost', port=6379, db=0)
+    redis = Redis(host='192.168.10.166', port=6379, db=0)
     psubscribe = redis.pubsub()
 
     oanda_context = Context("api-fxpractice.oanda.com",
@@ -195,4 +196,15 @@ if __name__ == '__main__':
                 redis_candle.time = data['time']
                 redis_candle.mid = CandlestickData(c=data['mid'])
                 candle_advanced.feed(redis_candle)
+                if candle_advanced.complete:
+                    old_brick = brick
+                    brick = brick.feed(candle_advanced.mid.c)
+                    if not type(old_brick) == type(brick):
+                        if isinstance(brick, BullBrick):
+                            print("BUY SIGNAL AT {}".format(datetime.now()))
+                        elif isinstance(brick, BearBrick):
+                            print("SELL SIGNAL AT {}".format(datetime.now()))
+                    old_candle_advanced = candle_advanced
+                    candle_advanced = CandlestickAdvanced("M15")
+                    candle_advanced.feed(old_candle_advanced)
                 print(data['time'])
