@@ -164,18 +164,35 @@
 from v20 import Context
 from v20.instrument import Candlestick, CandlestickData
 from redis import Redis
-from Renko import BlankBrick, BearBrick, BullBrick
+from RenkoBricks import BlankBrick, BullBrick, BearBrick
+from json import loads
+from CandlestickDataAdvanced import CandlestickAdvanced
 
 
 if __name__ == '__main__':
-    redis = Redis(host='192.168.10.166', port=6379, db=0)
+    redis = Redis(host='localhost', port=6379, db=0)
+    psubscribe = redis.pubsub()
 
     oanda_context = Context("api-fxpractice.oanda.com",
                             token="5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5")
     hist = oanda_context.pricing.candles("101-004-5674482-001", "EUR_USD", price="M", granularity="M15", count=5000).body["candles"]
-    print("test")
     brick = None
     for i in range(len(hist)):
         candle = hist[i]
         if i == 0:
-            brick = BlankBrick(candle)
+            brick = BlankBrick(candle.mid.c)
+        else:
+            brick = brick.feed(candle.mid.c)
+
+    candle_advanced = CandlestickAdvanced("M15")
+    candle_advanced.feed(hist[-1])
+    psubscribe.psubscribe("ticks.EUR_USD")
+    for message in psubscribe.listen():
+        if message is not None and isinstance(message, dict):
+            if message.get('data') != 1:
+                data = loads(message.get('data').decode('utf-8'))
+                redis_candle = Candlestick()
+                redis_candle.time = data['time']
+                redis_candle.mid = CandlestickData(c=data['mid'])
+                candle_advanced.feed(redis_candle)
+                print(data['time'])

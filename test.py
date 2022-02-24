@@ -4,6 +4,7 @@ from CandlestickDataAdvanced import CandlestickAdvanced
 from redis import Redis
 from renko import Renko
 from json import loads
+from CandlestickDataAdvanced import CandlestickAdvanced
 
 if __name__ == '__main__':
     redis = Redis(host='localhost', port=6379, db=0)

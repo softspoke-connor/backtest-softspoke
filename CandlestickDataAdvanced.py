@@ -7,19 +7,20 @@ class CandlestickAdvanced(Candlestick):
         super().__init__(**kwargs)
         self.granularity = granularity
         self.mid = CandlestickData()
+        self.complete = False
 
-        self.first_feed = False
+        self.first_feed = True
         self.completion_time = None
 
     def feed(self, candlestick: Candlestick):
-        if not self.first_feed:
+        if self.first_feed:
             self.time = self.__round_time(candlestick.time, round_type=False) + "000Z"
             self.mid.o = candlestick.mid.c
             self.mid.h = candlestick.mid.c
             self.mid.l = candlestick.mid.c
-            self.mid.c = candlestick.mid.c
+            # self.mid.c = candlestick.mid.c
             self.completion_time = self.__add_time()
-            self.first_feed = True
+            self.first_feed = False
         else:
             if self.__is_complete(candlestick.time):
                 self.complete = True
@@ -30,6 +31,8 @@ class CandlestickAdvanced(Candlestick):
             self.mid.l = candlestick.mid.c
 
         self.mid.c = candlestick.mid.c
+        self.time = candlestick.time
+        return self
 
     def __round_time(self, time, round_type=None):
         dt = datetime.strptime(time[:-4], "%Y-%m-%dT%H:%M:%S.%f")
@@ -56,4 +59,5 @@ class CandlestickAdvanced(Candlestick):
             raise NotImplementedError("This granularity is either invalid or has not yet been implemented.")
 
     def __is_complete(self, time):
-        return time > datetime.strftime(self.completion_time, "%Y-%m-%dT%H:%M:%S.%f")
+        test = datetime.strftime(self.completion_time, "%Y-%m-%dT%H:%M:%S.%f")
+        return time > test
