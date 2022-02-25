@@ -162,12 +162,46 @@
 #                             "candleSpecifications": "EUR_USD:M5:BAM"}).json()
 #     print(test)
 from v20 import Context
+from v20.transaction import StopLossDetails
 from v20.instrument import Candlestick, CandlestickData
+from v20.order import EntitySpec as OrderEntitySpec, MarketOrderRequest
+from v20.account import EntitySpec as AccountEntitySpec
+from v20.position import EntitySpec as PositionEntitySpec
 from redis import Redis
 from RenkoBricks import BlankBrick, BullBrick, BearBrick
 from json import loads
 from CandlestickDataAdvanced import CandlestickAdvanced
 from datetime import datetime
+
+
+def margin_available(ctx):
+    return AccountEntitySpec(ctx).summary("101-004-5674482-009").body['account'].marginAvailable
+
+
+def buy(ctx):
+    buy_order = OrderEntitySpec(oanda_context).create("101-004-5674482-009", order=MarketOrderRequest(
+        instrument="EUR_USD", units=margin_available(ctx) / 2, stopLossOnFill=StopLossDetails(distance=0.003)
+    ))
+    if buy_order.status != 200 or buy_order.status != 201:
+        raise ValueError("Buy Order returned code {}".format(buy_order.status))
+
+
+def sell(ctx):
+    sell_order = OrderEntitySpec(oanda_context).create("101-004-5674482-009", order=MarketOrderRequest(
+        instrument="EUR_USD", units=(margin_available(ctx) / 2) * -1, stopLossOnFill=StopLossDetails(distance=0.003)
+    ))
+    if sell_order.status != 200 or sell_order.status != 201:
+        raise ValueError("Sell Order returned code {}".format(sell_order.status))
+
+
+def close(ctx, signal):
+    if signal:
+        close_order = PositionEntitySpec(ctx).close("101-004-5674482-009", "EUR_USD", longUnits="ALL")
+    else:
+        close_order = PositionEntitySpec(ctx).close("101-004-5674482-009", "EUR_USD", shortUnits="ALL")
+
+    if close_order.status != 200:
+        raise ValueError("Close Order returned code {}".format(close_order.status))
 
 
 if __name__ == '__main__':
@@ -176,7 +210,7 @@ if __name__ == '__main__':
 
     oanda_context = Context("api-fxpractice.oanda.com",
                             token="5952c019ff679e3bd52cacc82a1599ab-6469870a2ec126764f162fafc5e36be5")
-    hist = oanda_context.pricing.candles("101-004-5674482-001", "EUR_USD", price="M", granularity="M15", count=5000).body["candles"]
+    hist = oanda_context.pricing.candles("101-004-5674482-009", "EUR_USD", price="M", granularity="M15", count=5000).body["candles"]
     brick = None
     for i in range(len(hist)):
         candle = hist[i]
@@ -201,8 +235,12 @@ if __name__ == '__main__':
                     brick = brick.feed(candle_advanced.mid.c)
                     if not type(old_brick) == type(brick):
                         if isinstance(brick, BullBrick):
+                            close(oanda_context, False)
+                            buy(oanda_context)
                             print("BUY SIGNAL AT {}".format(datetime.now()))
                         elif isinstance(brick, BearBrick):
+                            close(oanda_context, True)
+                            sell(oanda_context)
                             print("SELL SIGNAL AT {}".format(datetime.now()))
                     old_candle_advanced = candle_advanced
                     candle_advanced = CandlestickAdvanced("M15")
